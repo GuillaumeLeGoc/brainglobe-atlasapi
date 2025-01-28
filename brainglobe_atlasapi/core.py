@@ -217,6 +217,108 @@ class Atlas:
         else:
             return rid
 
+    def structures_from_coords_list(
+        self,
+        coords,
+        microns=False,
+        as_acronym=False,
+        key_error_string="Outside atlas",
+    ):
+        """Get the list of structures from a list of coordinate triplets.
+
+        Parameters
+        ----------
+        coords : np.ndarray
+            List of triplets of coordinates.
+        microns : bool, optional
+            If true, coordinates are interpreted in microns. Default is False.
+        as_acronym : bool, optional
+            If true, the region acronym is returned.
+            If outside atlas (structure gives key error),
+            return "Outside atlas". Default is False.
+        key_error_string : str, optional
+            Acronym to return if coord is outside the brain. Default is
+            "Outside atlas".
+
+        Returns
+        -------
+        int or string
+            Structure containing the coordinates.
+        """
+        # convert input to a numpy array
+        if not isinstance(coords, np.ndarray):
+            try:
+                coords = np.array(coords)
+            except ValueError:
+                raise ValueError("some element in coords are not triplets.")
+
+        # checks
+        if coords.ndim < 2:
+            # this might be only one triplet
+            if coords.shape[0] == 3:
+                warnings.warn(
+                    "coords interpreted as a single triplet of coordinates"
+                )
+                # use regular method for single triplet
+                return self.structure_from_coords(
+                    coords,
+                    microns,
+                    as_acronym=as_acronym,
+                    key_error_string=key_error_string,
+                )
+            else:
+                raise ValueError("coords is not a triplet of coordinates")
+        elif coords.ndim == 2:
+            if coords.shape[1] != 3:
+                # elements in the input list do not contain 3 coordinates
+                raise ValueError(
+                    "coords is not an array of triplets of coordinates"
+                )
+        else:
+            raise ValueError(
+                "coords is not an array of triplets of coordinates"
+            )
+
+        # get atlas lims
+        if microns:
+            lims = self.shape_um
+        else:
+            lims = self.shape
+
+        # reformat so we end up with :
+        # coords[0] -> x0, x1, x2, ... cords[1] -> y0, y1, ...
+        coords = coords.T
+        coords = [coords[0], coords[1], coords[2]]
+
+        # set out-of-atlas objects at 0
+        for idaxis in range(0, len(lims)):
+            coords[idaxis][
+                (coords[idaxis] >= lims[idaxis]) | (coords[idaxis] < 0)
+            ] = 0
+
+        # convert to pixel indices if coords is in microns
+        if microns:
+            coords = [
+                (np.array(coords[idx]) / self.resolution[idx]).astype(int)
+                for idx in range(0, len(self.resolution))
+            ]
+
+        # convert i, j, k indices in raveled indices
+        linear_indices = np.ravel_multi_index(
+            coords, dims=self.annotation.shape
+        )
+        # get the structure id from the annotation stack
+        idlist = self.annotation.ravel()[linear_indices]
+
+        # get corresponding acronyms
+        if as_acronym:
+            lookup = self.lookup_df.set_index("id")
+            # add index 0
+            lookup.loc[0] = [key_error_string, key_error_string]
+            return lookup.loc[idlist, "acronym"].values.tolist()
+        else:
+            return idlist.tolist()
+
     # Meshes-related methods:
     def _get_from_structure(self, structure, key):
         """Internal interface to the structure dict. It support querying with a

@@ -13,7 +13,7 @@ def test_initialization(atlas):
     assert atlas.metadata == {
         "name": "example_mouse",
         "citation": (
-            "Wang et al 2020, " "https://doi.org/10.1016/j.cell.2020.04.007"
+            "Wang et al 2020, https://doi.org/10.1016/j.cell.2020.04.007"
         ),
         "atlas_link": "http://www.brain-map.org",
         "species": "Mus musculus",
@@ -86,6 +86,33 @@ def test_data_from_coords(atlas, coords):
     res = atlas.resolution
     assert atlas.structure_from_coords(coords) == 997
     assert atlas.structure_from_coords(coords, as_acronym=True) == "root"
+    assert (
+        atlas.structure_from_coords(
+            [c * r for c, r in zip(coords, res)], microns=True, as_acronym=True
+        )
+        == "root"
+    )
+    assert atlas.hemisphere_from_coords(coords) == atlas.right_hemisphere_value
+    assert atlas.hemisphere_from_coords(coords, as_string=True) == "right"
+    assert (
+        atlas.hemisphere_from_coords(
+            [c * r for c, r in zip(coords, res)], microns=True, as_string=True
+        )
+        == "right"
+    )
+
+
+@pytest.mark.parametrize(
+    "coords_list",
+    [
+        [[335, 563, 354], [343, 544, 342]],
+        ((335, 563, 354), (343, 544, 342)),
+    ],
+)
+def test_data_from_coords_list(atlas, coords):
+    res = atlas.resolution
+    assert atlas.structures_from_coords_list(coords) == 961
+    assert atlas.structure_from_coords(coords, as_acronym=True) == "PIR"
     assert (
         atlas.structure_from_coords(
             [c * r for c, r in zip(coords, res)], microns=True, as_acronym=True
